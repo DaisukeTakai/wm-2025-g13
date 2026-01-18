@@ -1,0 +1,7 @@
+v_jepa2_ac
+
+captioning/datasets/
+captioning/shell/
+
+.DS_Store
+.vscode/
