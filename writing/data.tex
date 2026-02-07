@@ -1,0 +1,192 @@
+\usepackage{color}
+\usepackage{amsmath}
+\usepackage{mathtools}
+
+%%
+\title{
+\jtitle{言語指示で変化させた潜在表現は制御に足りるか：JEPA World Models における実現可能性評価 }
+\etitle{Language-Conditioned Latent Planning without Goal Images in Joint-Embedding Predictive World Models}
+}
+%%英文は以下を使用
+%\title{Style file for manuscripts of JSAI 20XX}
+
+\jaddress{氏名，所属，住所，電話番号，Fax番号，電子メールアドレスなど}
+
+\author{%
+\jname{高橋諒\first}
+\ename{Ryo Takahashi}
+\and
+\jname{高井大輔\second}
+\ename{Daisuke Takai}
+\and
+\jname{石田涼太\third}
+\ename{Ryota Ishida}
+\and
+\jname{鈴木雅大\fourth}
+\ename{Masahiro Suzuki}
+\and
+\jname{松尾豊\fourth}
+\ename{Yutaka Matsuo}
+%Given-name Surname\third{}%%英文は左を使用
+}
+
+\affiliate{
+\jname{\first{}会津大学コンピュータ理工学部}
+\ename{University Of Aizu}
+\and
+\jname{\second{}東京大学大学院医学系研究科}
+\ename{The University of Tokyo}
+\and
+\jname{\third{}九州工業大学情報工学部}
+\ename{Kyushu Institute of Technology}
+\and
+\jname{\fourth{}東京大学大学院工学系研究科}
+\ename{The University of Tokyo}
+%\and
+%\third{}Affiliation \#3 in English%%英文は左を使用
+}
+
+%%
+%\Vol{28}        %% <-- 28th（変更しないでください）
+%\session{0A0-00}%% <-- 講演ID（必須)
+
+\begin{abstract}
+Here is an abstract of up to 150 words in English or 300 characters in Japanese. 
+This document describes the format guidelines for Japanese manuscripts in \LaTeX{} of the annual conference of JSAI. 
+This is also a sample of a formatted manuscripts (see 2.4 for writing the abstract).
+\end{abstract}
+
+%\setcounter{page}{1}
+\def\Style{``jsaiac.sty''}
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em%
+ T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+\def\JBibTeX{\leavevmode\lower .6ex\hbox{J}\kern-0.15em\BibTeX}
+\def\LaTeXe{\LaTeX\kern.15em2$_{\textstyle\varepsilon}$}
+
+\begin{document}
+\maketitle
+
+\section{序論}
+物理環境における汎用的なタスク解決では、状態・行動系列から遷移を学習した世界モデルに基づく計画が有効である。
+近年は、画像などの観測空間で将来を逐次生成して評価する代わりに、表現空間（潜在空間）でダイナミクスをロールアウトし、モデル予測制御（MPC）等で行動系列を最適化する枠組みが広く用いられている。
+とりわけ、生成の忠実度に依存せず表現の予測整合性を重視するJoint-Embedding Predictive Architecture（JEPA）系世界モデルは、非生成的設計により計画へ接続しやすい一方、潜在表現が制御に必要な情報を十分保持しているかという実現可能性の検証が課題として残る。
+既存のJEPA系ゴール条件付き制御は、ゴール画像から目標潜在を得る条件での評価が中心である。
+しかし実運用では、目標状態を画像で提示できるとは限らず、言語指示による目標指定が自然である。
+言語条件付きロボティクス（命令追従、VLA等）は進展しているものの、非生成的な表現空間計画において、言語から直接推定した潜在ゴールが計画・制御に十分な目標表現となり得る条件は明確でない。
+言語の曖昧性や、成功に必要な視覚差分の小ささは、潜在ゴール同定の不確実性を増大させ、制御性能の劣化に結び付く可能性がある。 
+本研究は、生成を伴わないJEPAの設計思想を保持したまま、開始画像 $I_0$ と指示文 $T$ から到達状態を表す目標潜在 $z_{goal}$ を推定し、潜在空間MPCにより行動系列を最適化する言語条件付き潜在計画を検討する。
+Metaworldタスク集合で、先行研究で一般的なゴール画像提示条件を比較基準として、言語条件下での目標潜在推定誤差（L2距離・コサイン距離）と制御性能（成功率・到達ステップ）を対応付けて評価し、言語で誘導した潜在表現が制御に足りる成立範囲と限界、ならびに性能低下の要因を定量的に明らかにする。 
+
+\section{関連研究}
+
+\subsection{JEPAと表現空間計画（V-JEPA2、JEPA-WM、DINO-WM）}
+世界モデルに基づく計画は、学習した遷移モデルのロールアウトに対して行動系列を最適化する枠組みであり、画像観測ではピクセル空間での逐次生成が誤差累積や計算コストの点で課題となりやすい。
+近年はこの問題を回避するため、観測を表現空間（潜在空間）へ写像し、表現上で将来を予測して最適化する「表現空間計画」が広く用いられている。 
+JEPAは、入力の詳細を再構成するのではなく、下流タスクに有用な表現を直接予測する点に特徴がある。
+V-JEPA2は生成を伴わない自己教師あり動画事前学習（action-free JEPA）を基盤に、理解・予測・計画を一貫して扱う枠組みを提示し、さらに少量の相互作用データで行動条件付き世界モデル（V-JEPA2-AC）へ接続して、ゴール画像由来の目標表現を用いた計画と実機デモを報告している\cite{v_jepa2}。 
+本研究が扱う課題は、この「ゴール画像→目標表現」の前提を外し、言語から推定した目標潜在が表現空間計画に十分か（実現可能性）を検証する点にある。 
+またDINO-WMは、事前学習済み視覚特徴上で将来特徴を予測し、目標特徴への到達を行動系列最適化として解くことで、再構成を介さないゼロショット計画を提示している\cite{dino_wm}。 
+TerverらはJEPA系世界モデルによる物理計画をJEPA-WMとして整理し、モデル設計・学習目的・計画アルゴリズムの選択が成功率を左右することを系統的に示すとともに、得られた知見を統合した構成が、同論文のナビゲーション／マニピュレーション課題においてDINO-WMおよびV-JEPA2-ACを上回ることを報告した\cite{jepa_wm}。 
+ 
+\subsection{言語・マルチモーダルJEPA（VL-JEPA）と指示条件付き制御}
+言語指示に基づく制御では、視覚と言語を統合して目標を表現し、計画・制御へ接続する必要がある。VL-JEPAは自己回帰的トークン生成ではなく、テキストの連続埋め込みを予測するJEPAとして視覚言語モデルを構成し、表現空間で意味を捉える設計を提案している\cite{vl_jepa}。 
+本研究は、VL-JEPAを生成器として用いず、言語表現を介して目標潜在を推定し、潜在空間MPCで行動系列を最適化する。
+先行研究で一般的なゴール画像由来の目標潜在を比較基準として、言語条件下での目標潜在推定誤差と制御性能の対応から、言語条件付き表現空間計画の成立範囲を定量化する。
+
+\section{提案手法}
+
+\subsection{問題設定}
+開始観測（画像）$I_0$  と指示文 $T$ が与えられたとき，指示に対応する目標状態へ到達する有限長の行動系列 ${a}_{0:N} \coloneq (a_0, \dots, a_N)$ を求めることを目的とする。
+本研究では，画像観測を潜在表現へ写像する画像エンコーダ $E_{img}$ ，潜在表現の遷移を予測するダイナミクスモデル $f$，テキストを埋め込みへ写像するテキストエンコーダ $E_{text}$ を事前学習済みとして固定し（凍結），学習対象は目標潜在を推定する軽量ヘッドのみとする。 
+
+\subsection{目標潜在推定}
+開始画像の潜在表現を $z_0 = E_{img}(I_0)$，指示文の埋め込みを $u = E_{text}(T)$ とする。
+目標潜在 $z_{goal}$ は，$z_0$ と $u$ に条件付けて小規模ネットワーク $G_\theta$（GoalHead）により推定し、
+\begin{equation}
+    \hat{z}_{goal} = G_\theta(z_0, u)
+\end{equation}
+と定義する。
+
+学習時には，各タスクについて用意したゴール画像 $I_{goal}$ を画像エンコーダに通して教師潜在 $z_{goal} = E_{img}(I_{goal})$ を構成し，推定潜在 $\hat{z}_{goal}$ が $z_{goal}$ に一致するようにパラメータ $\theta$ を学習する。
+損失関数は，スケールのずれに頑健な方向一致と，絶対距離の両方を反映するため，$L_2$ 距離とコサイン距離を組み合わせて
+\begin{equation}
+\mathcal{L}(\theta)
+=
+\left\lVert
+\hat{z}_{goal} - z_{goal}
+\right\rVert_2^2
++
+\lambda \left(
+1 - \cos\!\left(
+\hat{z}_{goal},\, z_{goal}
+\right)
+\right)
+\end{equation}
+とする。ここで $\lambda$ は各項の寄与を調節するハイパーパラメータである。
+
+\subsection{潜在空間MPCとCEM}
+計画は潜在空間でのモデル予測制御（MPC）として行う。
+時刻 $t$ における潜在 $z_{t}$ （実装上は $z_{t}=E_{img}(I_{t})$）から，ホライズン $H$ の候補行動系列 $a_{t:t+H-1}$  をサンプリングし，ダイナミクス $f$ によりロールアウトして予測終端潜在 $\tilde{z}_{t+H}$ を得る。
+コスト関数は推定目標潜在 $\hat{z}_{goal}$ への近さとして 
+\begin{equation}
+    J(\mathbf{a}_{t:t+H-1})
+    = d\bigl(\tilde{z}_{t+H}, \hat{z}_{goal}\bigr)
+\end{equation}
+を最小化する（$d$ はL2距離またはコサイン距離に基づく距離）。最適化にはCross-Entropy Method（CEM）を用い，行動系列分布から多数サンプルを生成して評価し，上位（エリート）集合から分布を更新する操作を反復する。
+最終的に得られた最良系列の先頭行動 $a_t$  のみを環境に適用し，次時刻へ進むリシーディングホライズン方式で繰り返す。
+
+\section{実験}
+
+\subsection{実験環境}
+本研究では、提案手法の有効性を検証するため、 ロボット操作のベンチマークである Metaworld \cite{metaworld} を用いた。
+全42種類のタスクのうち、Terverら \cite{jepa_wm} の先行研究と同様に、 Reach (MW-R) および Reach-wall (MW-RW) タスクを選択して評価を行った。
+
+\subsection{}
+\begin{table}[t]
+  \centering
+  \caption{Metaworld結果}
+  \label{tab:result}
+  \begin{tabular}{lcc}
+      \hline
+      モデル & MW-R & MW-RW \\
+      \hline
+      JEPA WM & \textbf{a} & \textbf{a} \\
+      提案手法 & b & b \\
+      \hline
+  \end{tabular}
+\end{table}
+
+\section{考察}
+
+
+\section{結語}
+
+
+\begin{thebibliography}{99}
+\bibitem[Yu 19]{metaworld}
+ Yu,~T., Quillen,~D., He,~Z., Julian,~R., Hausman,~K., Finn,~C. and Levine,~S.: 
+ Meta-World: A Benchmark and Evaluation Federation for Multi-Task and Meta-Reinforcement Learning, 
+ Proc. Conf. Robot. Learning (CoRL), pp.~1--11 (2019).
+\bibitem[Chua 18]{cem_pets}
+ Chua,~K., Calandra,~R., McAllister,~R. and Levine,~S.: 
+ Deep Reinforcement Learning in a Handful of Trials using Probabilistic Dynamics Models, 
+ Advances in Neural Information Processing Systems (NeurIPS), Vol.~31, pp.~4754--4765 (2018).
+\bibitem[Seitaridis 25]{dino_wm}
+ Seitaridis,~P., Hafner,~D., Shafiullah,~N.~M.~M., Pinto,~L. and Kostrikov,~I.: 
+ DINO-WM: World Models on Pre-trained Visual Features, 
+ arXiv preprint arXiv:2411.14371 (2025).
+\bibitem[Terver 25]{jepa_wm}
+ Terver,~B., Yang,~T.~Y., Ponce,~J., Bardes,~A. and LeCun,~Y.: 
+ What Drives Success in Physical Planning with Joint-Embedding Predictive World Models?, 
+ arXiv preprint arXiv:2512.24497 (2025).
+\bibitem[Assran 25]{v_jepa2}
+ Assran,~M., Bardes,~A., Fan,~D., Garrido,~Q., Howes,~R., Mojtaba, Komeili, M., Muckley,~M., Rizvi,~A., Roberts,~C., Sinha,~K., Zholus,~A. et al.: 
+ V-JEPA 2: Self-Supervised Video Models Enable Understanding, Prediction and Planning, 
+ arXiv preprint arXiv:2506.09985 (2025).
+\bibitem[Chen 25]{vl_jepa}
+ Chen,~D., Shukor,~M., Moutakanni,~T., Chung,~W., Yu,~J., Kasarla,~T., Bang,~Y., Bolourchi,~A., LeCun,~Y. and Fung,~P.: 
+ VL-JEPA: Joint Embedding Predictive Architecture for Vision-language, 
+ arXiv preprint arXiv:2512.10942 (2025).
+\end{thebibliography}
+
+%%
