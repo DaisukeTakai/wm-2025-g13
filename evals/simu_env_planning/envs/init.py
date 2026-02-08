@@ -34,12 +34,16 @@ def _lazy_make_env(env_key, cfg):
 
             _lazy_env_cache[env_key] = importlib.import_module(module_path).make_env
         except Exception as e:
-            raise ImportError(f"Missing dependencies for {install_name}. See README.md. Error: {e}") from e
+            raise ImportError(
+                f"Missing dependencies for {install_name}. See README.md. Error: {e}"
+            ) from e
     return _lazy_env_cache[env_key](cfg)
 
 
 # These environments have minimal dependencies and can be imported eagerly
-from evals.simu_env_planning.envs.droid_dset_dummy_env import make_env as make_droid_dset_dummy_env
+from evals.simu_env_planning.envs.droid_dset_dummy_env import (
+    make_env as make_droid_dset_dummy_env,
+)
 from evals.simu_env_planning.envs.pusht_gym_wrap import make_env as make_pusht_env
 from evals.simu_env_planning.envs.wall_gym_wrap import make_env as make_wall_env
 
@@ -54,7 +58,9 @@ def make_multitask_env(cfg):
     envs = []
     for task in cfg.tasks:
         _cfg = deepcopy(cfg)
-        _cfg.task = task
+        # Each sub-env must get a concrete task id.
+        # `make_env` dispatches based on `cfg.task_specification.task`.
+        _cfg.task_specification.task = task
         _cfg.task_specification.multitask = False
         env = make_env(_cfg)
         if env is None:
@@ -78,11 +84,17 @@ def make_env(cfg):
         elif cfg.task_specification.task.startswith("robocasa"):
             pass
         else:  # pusht
-            cfg.task_specification.max_episode_steps = cfg.frameskip * cfg.task_specification.goal_H
-            cfg.task_specification.goal_max_episode_steps = cfg.frameskip * cfg.task_specification.goal_H
+            cfg.task_specification.max_episode_steps = (
+                cfg.frameskip * cfg.task_specification.goal_H
+            )
+            cfg.task_specification.goal_max_episode_steps = (
+                cfg.frameskip * cfg.task_specification.goal_H
+            )
     elif cfg.task_specification.goal_source == "random_state":
         # TODO: Hardcoded for now, improve
-        cfg.task_specification.max_episode_steps = cfg.frameskip * cfg.task_specification.goal_H
+        cfg.task_specification.max_episode_steps = (
+            cfg.frameskip * cfg.task_specification.goal_H
+        )
     else:
         if cfg.task_specification.get("max_episode_steps", None) is None:
             cfg.task_specification.max_episode_steps = 100
@@ -111,7 +123,9 @@ def make_env(cfg):
     try:  # Dict
         cfg.obs_shape = {k: v.shape for k, v in env.observation_space.spaces.items()}
     except:  # Box
-        cfg.obs_shape = {cfg.task_specification.get("obs", "state"): env.observation_space.shape}
+        cfg.obs_shape = {
+            cfg.task_specification.get("obs", "state"): env.observation_space.shape
+        }
     if cfg.task_specification.get("obs", "state") == "rgb_state":
         cfg.obs_shape = {"state": [4], "rgb": cfg.obs_shape["rgb_state"]}
 

@@ -4,6 +4,17 @@
 # licensed under the MIT License
 
 TASK_SET = {
+    # Two-task subset for quick comparisons.
+    "mw2": [
+        "mw-reach",
+        "mw-reach-wall",
+    ],
+    # Minimal subset for fast iteration.
+    "mw3": [
+        "mw-reach",
+        "mw-reach-wall",
+        "mw-box-close",
+    ],
     "mwgreedy": [
         "mw-reach",
         "mw-reach-wall",

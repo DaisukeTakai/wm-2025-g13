@@ -14,6 +14,12 @@ logger = logging.getLogger()
 
 
 def main(app, args, resume_preempt=False):
-
     logger.info(f"Running pre-training of app: {app}")
-    return importlib.import_module(f"app.{app}.train").main(args=args, resume_preempt=resume_preempt)
+    # Support nested app modules like "goalhead.finetune".
+    if "." in app:
+        return importlib.import_module(f"app.{app}").main(
+            args=args, resume_preempt=resume_preempt
+        )
+    return importlib.import_module(f"app.{app}.train").main(
+        args=args, resume_preempt=resume_preempt
+    )

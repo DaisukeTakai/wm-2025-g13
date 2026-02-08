@@ -1,0 +1,111 @@
+# Train GoalHead on free-form English instructions from HF dataset.
+
+app: goalhead.train_instruction
+
+folder: ${JEPAWM_LOGS}/goalhead_instruction/metaworld_v2
+
+# Frozen world model checkpoint (Metaworld JEPA-WM, paper default)
+wm_checkpoint: https://dl.fbaipublicfiles.com/jepa-wms/mw_jepa-wm.pth.tar
+
+# Pretrain kwargs must match the frozen WM checkpoint architecture.
+# Reuse the same defaults as the existing mw_goalhead_train.yaml.
+wm_module_name: app.vjepa_wm.modelcustom.simu_env_planning.vit_enc_preds
+wm_pretrain_kwargs:
+  grid_size: 16
+  tubelet_size_enc: 1
+  use_activation_checkpointing: false
+  action_conditioning: token
+  proprio_encoding: feature
+  num_frames_pred: 4
+  visual_encoder:
+    enc_type: dino
+    enc_version: dinov2_vits14
+    pretrain_enc_path:
+    pretrain_enc_ckpt_key: target_encoder
+    embed_dim: 384
+    enc_use_rope:
+    enc_name:
+    use_sdpa_enc: true
+    num_frames_enc: 16
+    uniform_power: true
+  action_encoder:
+    action_tokens: 1
+    action_emb_dim: 0
+    act_mlp: false
+    action_encoder_inpred: true
+  proprio_encoder:
+    proprio_tokens: 0
+    proprio_emb_dim: 16
+    prop_mlp: false
+    proprio_encoder_inpred: false
+  predictor:
+    tubelet_size: 1
+    pred_num_heads: 16
+    pred_depth: 6
+    pred_embed_dim: 384
+    pred_use_extrinsics: false
+    pred_type: AdaLN
+    act_pred_projector: false
+    use_SiLU: false
+    use_rope: true
+  wm_encoding:
+    batchify_video: true
+    dup_image: false
+    normalize_reps: false
+  attn:
+    local_window_time: 3
+    local_window_h: -1
+    local_window_w: -1
+  heads_cfg:
+    architectures: {}
+
+wm_data_aug:
+  normalize:
+    - [0.485, 0.456, 0.406]
+    - [0.229, 0.224, 0.225]
+
+wm_data:
+  dataset_type: custom
+  datasets: [METAWORLD_HF]
+  img_size: 224
+  custom:
+    frameskip: 5
+    action_skip: 1
+    state_skip: 1
+
+# Hugging Face dataset repo id
+hf_repo: wm-2025-g13/metaworld
+
+img_size: 224
+
+# Expand each base sample by selecting one of K instruction variants.
+k_variants_train: 10
+k_variants_val: 1
+val_fixed_variant_idx: 0
+
+# Tokenizer (baseline)
+max_vocab: 20000
+min_freq: 1
+max_text_len: 32
+
+# GoalHead model
+goalhead_kind: v2
+goalhead:
+  text_embed_dim: 256
+  text_depth: 2
+  text_num_heads: 4
+  visual_depth: 6
+  visual_num_heads: 8
+
+# Optimization
+batch_size: 32
+num_workers: 0
+lr: 0.0003
+weight_decay: 0.0001
+epochs: 5
+lambda_cos: 1.0
+alpha_proprio: 1.0
+device: cuda:0
+
+# Resume from existing goalhead_latest.pt if present
+resume: true

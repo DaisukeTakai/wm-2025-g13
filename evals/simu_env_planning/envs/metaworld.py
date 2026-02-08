@@ -1,9 +1,13 @@
+# pyright: reportMissingImports=false
+#
 # Copyright (c) Facebook, Inc. and its affiliates.
 # All rights reserved.
 # The below code is inspired from TD-MPC2 https://github.com/nicklashansen/tdmpc2
 # licensed under the MIT License
 
 import logging
+
+from typing import Any
 
 import gym
 import numpy as np
@@ -16,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 class MetaWorldWrapper(gym.Wrapper):
-    def __init__(self, env, cfg=None, camera_fovy: float | None = None):
+    def __init__(self, env, cfg: Any, camera_fovy: float | None = None):
         """
         MetaWorld environment wrapper.
 
@@ -26,6 +30,8 @@ class MetaWorldWrapper(gym.Wrapper):
             camera_fovy: Camera field of view in degrees. Lower values = more zoomed in.
                         If None (default), uses the original camera FOV (60 degrees for corner2).
         """
+        # Keep runtime failures explicit; this wrapper depends on cfg fields.
+        assert cfg is not None, "MetaWorldWrapper requires a non-None cfg"
         super().__init__(env)
         self.env = env
         self.cfg = cfg
@@ -57,6 +63,18 @@ class MetaWorldWrapper(gym.Wrapper):
             camera_name=self.env.camera_name,
         )
 
+    def _render_offscreen(self):
+        """Render without requiring an X11 display.
+
+        Metaworld uses MuJoCo. When running headless, we want an offscreen OpenGL context.
+        If DISPLAY is missing, we default to EGL.
+        """
+        import os
+
+        if os.environ.get("DISPLAY") is None:
+            os.environ.setdefault("MUJOCO_GL", "egl")
+        return self.env.render().copy()[::-1]
+
     def set_camera_fovy(self, fovy: float):
         """
         Set camera field of view to control zoom level.
@@ -68,7 +86,9 @@ class MetaWorldWrapper(gym.Wrapper):
         """
         import mujoco
 
-        camera_id = mujoco.mj_name2id(self.env.model, mujoco.mjtObj.mjOBJ_CAMERA, self.camera_name)
+        camera_id = mujoco.mj_name2id(
+            self.env.model, mujoco.mjtObj.mjOBJ_CAMERA, self.camera_name
+        )
         if camera_id >= 0:
             self.env.model.cam_fovy[camera_id] = fovy
         else:
@@ -115,11 +135,11 @@ class MetaWorldWrapper(gym.Wrapper):
         return self.env.unwrapped
 
     def render(self, *args, **kwargs):
-        result = self.env.render().copy()[::-1]  # flip vertically
+        result = self._render_offscreen()  # flip vertically
         if result.sum() == 0:
             logger.info("Reinitializing render MetaworldWrapper")
             self.init_renderer()
-            result = self.env.render().copy()[::-1]
+            result = self._render_offscreen()
             if result.sum() == 0:
                 raise ValueError("Rendering failed: 0 after reinit renderer.")
         return result  # H W 3
@@ -141,9 +161,16 @@ def make_env(cfg, env_cls=None):
     else:
         # We ALWAYS take this option
         env = ALL_V3_ENVIRONMENTS_GOAL_OBSERVABLE[env_id](seed=cfg.meta.seed)
-        logger.info(f"No env_cls so env initialized with seed {cfg.meta.seed} and {env_id=}")
+        logger.info(
+            f"No env_cls so env initialized with seed {cfg.meta.seed} and {env_id=}"
+        )
     env.seeded_rand_vec = False
-    env = MetaWorldWrapper(env, cfg)
+    camera_fovy = None
+    try:
+        camera_fovy = cfg.task_specification.env.get("camera_fovy")
+    except Exception:
+        camera_fovy = None
+    env = MetaWorldWrapper(env, cfg, camera_fovy=camera_fovy)
     env = TimeLimit(env, max_episode_steps=cfg.task_specification.max_episode_steps)
     env.max_episode_steps = env._max_episode_steps
     return env
@@ -160,9 +187,9 @@ def task_name_to_policy_name(task_name: str):
     }
     if task_name in special_cases:
         return special_cases[task_name]
-    task_name = task_name.split("-")
+    parts = str(task_name).split("-")
     policy_name = "Sawyer"
-    policy_name += "".join([word.capitalize() for word in task_name[1:]])
+    policy_name += "".join([word.capitalize() for word in parts[1:]])
     policy_name += "V3Policy"
     return policy_name
 
