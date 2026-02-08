@@ -24,4 +24,8 @@ configs/cwtemp/
 
 MUJOCO_LOG.TXT
 
-macros.py
+# Workspace artifacts
+${JEPAWM_LOGS}__UNTRACKED/
+
+# Local secrets
+.env
