@@ -35,9 +35,17 @@ class GC_Agent:
         logger.info("🏗️  Initializing GC_Agent with WorldModel")
         self.model = model
         self.dset = dset
-        if hasattr(self.dset, "frames_per_clip") and cfg.task_specification.goal_source == "dset":
-            if self.dset.frames_per_clip < cfg.frameskip * cfg.task_specification.goal_H + 1:
-                self.dset.frames_per_clip = cfg.frameskip * cfg.task_specification.goal_H + 1
+        if (
+            hasattr(self.dset, "frames_per_clip")
+            and cfg.task_specification.goal_source == "dset"
+        ):
+            if (
+                self.dset.frames_per_clip
+                < cfg.frameskip * cfg.task_specification.goal_H + 1
+            ):
+                self.dset.frames_per_clip = (
+                    cfg.frameskip * cfg.task_specification.goal_H + 1
+                )
         self.preprocessor = preprocessor
         self.local_generator = torch.Generator(device="cpu")
         self.local_gpu_generator = torch.Generator(device="cuda:0")
@@ -106,18 +114,72 @@ class GC_Agent:
         if self.cfg.planner.planning_objective.objective_type == "L2":
             # Careful: unsqueeze applies to TensorDicts
             self.objective = ReprTargetDistMPCObjective(
-                self.cfg, target_enc=self.goal_state_enc, **self.cfg.planner.planning_objective
+                self.cfg,
+                target_enc=self.goal_state_enc,
+                **self.cfg.planner.planning_objective,
             )
         elif self.cfg.planner.planning_objective.objective_type == "L1":
             self.objective = ReprTargetDistL1MPCObjective(
-                self.cfg, target_enc=self.goal_state_enc, **self.cfg.planner.planning_objective
+                self.cfg,
+                target_enc=self.goal_state_enc,
+                **self.cfg.planner.planning_objective,
             )
         elif self.cfg.planner.planning_objective.objective_type == "repr_sim":
             self.objective = ReprTargetCosMPCObjective(
-                self.cfg, target_enc=self.goal_state_enc, **self.cfg.planner.planning_objective
+                self.cfg,
+                target_enc=self.goal_state_enc,
+                **self.cfg.planner.planning_objective,
             )
         else:
-            raise ValueError(f"Unknown objective type: {self.cfg.planner.planning_objective.objective_type}")
+            raise ValueError(
+                f"Unknown objective type: {self.cfg.planner.planning_objective.objective_type}"
+            )
+
+        if self.planner is not None:
+            self.planner.set_objective(self.objective)
+
+    @torch.no_grad()
+    def set_goal_encoding(self, goal_state_enc):
+        """Set the planner target directly in representation space.
+
+        Used for goal_source=language, where the goal encoding is predicted by a
+        GoalHead given the initial encoding and instruction text.
+        """
+        assert goal_state_enc is not None, "Goal encoding must be provided."
+        self.goal_state = None
+        # goal_state_enc is typically a TensorDict; keep it on the agent device.
+        try:
+            goal_state_enc = goal_state_enc.to(self.device)
+        except Exception:
+            pass
+        try:
+            goal_state_enc = goal_state_enc.detach()
+        except Exception:
+            pass
+        self.goal_state_enc = goal_state_enc
+
+        if self.cfg.planner.planning_objective.objective_type == "L2":
+            self.objective = ReprTargetDistMPCObjective(
+                self.cfg,
+                target_enc=self.goal_state_enc,
+                **self.cfg.planner.planning_objective,
+            )
+        elif self.cfg.planner.planning_objective.objective_type == "L1":
+            self.objective = ReprTargetDistL1MPCObjective(
+                self.cfg,
+                target_enc=self.goal_state_enc,
+                **self.cfg.planner.planning_objective,
+            )
+        elif self.cfg.planner.planning_objective.objective_type == "repr_sim":
+            self.objective = ReprTargetCosMPCObjective(
+                self.cfg,
+                target_enc=self.goal_state_enc,
+                **self.cfg.planner.planning_objective,
+            )
+        else:
+            raise ValueError(
+                f"Unknown objective type: {self.cfg.planner.planning_objective.objective_type}"
+            )
 
         if self.planner is not None:
             self.planner.set_objective(self.objective)
@@ -144,8 +206,12 @@ class GC_Agent:
         self._prev_losses = planning_result.losses
         self._prev_elite_losses_mean = planning_result.prev_elite_losses_mean
         self._prev_elite_losses_std = planning_result.prev_elite_losses_std
-        self._prev_pred_frames_over_iterations = planning_result.pred_frames_over_iterations
-        self._predicted_best_encs_over_iterations = planning_result.predicted_best_encs_over_iterations
+        self._prev_pred_frames_over_iterations = (
+            planning_result.pred_frames_over_iterations
+        )
+        self._predicted_best_encs_over_iterations = (
+            planning_result.predicted_best_encs_over_iterations
+        )
         return planning_result.actions
 
     def act(

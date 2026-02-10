@@ -1,0 +1,167 @@
+# Run2: mid-cost planner, offline init->instruction, seed-shifted.
+
+tasks_per_node: 1
+cpus_per_task: 16
+mem_per_gpu: 64G
+copy_code: false
+
+folder: ${JEPAWM_LOGS}/goalhead_eval_instruction
+checkpoint_folder: ${JEPAWM_CKPT}/goalhead_eval_instruction
+
+tag: local_language/reach-wall_instructionfile_eval20_mid_run2_seed1020003_r2
+eval_name: simu_env_planning
+
+tasks: [mw-reach, mw-reach-wall]
+
+meta:
+  quick_debug: false
+  seed: 1020003
+  eval_episodes: 20
+
+distributed:
+  distribute_multitask_eval: false
+  local_rng_samplers: false
+  seed_shift: horizon_1000
+
+logging:
+  exp_name: gc_language_reach_wall_instructionfile_mid
+  save_csv: true
+  tqdm_silent: false
+  optional_plots: false
+  save_videos: false
+  save_pdfs: false
+
+model_kwargs:
+  module_name: app.vjepa_wm.modelcustom.simu_env_planning.vit_enc_preds
+  checkpoint: https://dl.fbaipublicfiles.com/jepa-wms/mw_jepa-wm.pth.tar
+  pretrain_kwargs:
+    grid_size: 16
+    tubelet_size_enc: 1
+    use_activation_checkpointing: false
+    action_conditioning: token
+    proprio_encoding: feature
+    num_frames_pred: 4
+    visual_encoder:
+      enc_type: dino
+      enc_version: dinov2_vits14
+      pretrain_enc_path:
+      pretrain_enc_ckpt_key: target_encoder
+      embed_dim: 384
+      enc_use_rope:
+      enc_name:
+      use_sdpa_enc: true
+      num_frames_enc: 16
+      uniform_power: true
+    action_encoder:
+      action_tokens: 1
+      action_emb_dim: 0
+      act_mlp: false
+      action_encoder_inpred: true
+    proprio_encoder:
+      proprio_tokens: 0
+      proprio_emb_dim: 16
+      prop_mlp: false
+      proprio_encoder_inpred: false
+    predictor:
+      tubelet_size: 1
+      pred_num_heads: 16
+      pred_depth: 6
+      pred_embed_dim: 384
+      pred_use_extrinsics: false
+      pred_type: AdaLN
+      act_pred_projector: false
+      use_SiLU: false
+      use_rope: true
+    wm_encoding:
+      batchify_video: true
+      dup_image: false
+      normalize_reps: false
+    attn:
+      local_window_time: 3
+      local_window_h: -1
+      local_window_w: -1
+    heads_cfg:
+      architectures: {}
+  data:
+    dataset_type: custom
+    datasets: [METAWORLD_HF]
+    seed: 234
+    img_size: 224
+    validation:
+      val_datasets: []
+    loader:
+      batch_size: 1
+      num_workers: 0
+      pin_mem: true
+      persistent_workers: false
+    custom:
+      split_ratio: 0.9
+      frameskip: 5
+      action_skip: 1
+      state_skip: 1
+      normalize_action: true
+      traj_subset: true
+      num_hist: 3
+      num_pred: 1
+      with_reward: false
+  data_aug:
+    auto_augment: false
+    random_horizontal_flip: false
+    motion_shift: false
+    random_resize_aspect_ratio: [1.0, 1.0]
+    random_resize_scale: [1.777, 1.777]
+    reprob: 0.0
+    normalize:
+      - [0.485, 0.456, 0.406]
+      - [0.229, 0.224, 0.225]
+  wrapper_kwargs:
+    ctxt_window: 2
+
+task_specification:
+  task: mw2
+  multitask: true
+  obs: rgb_state
+  obs_concat_channels: false
+  goal_source: language
+  goalhead_checkpoint: ${JEPAWM_LOGS}/goalhead_instruction/metaworld_v2/goalhead_instruction.pt
+  goalhead_max_text_len: 32
+  language_tokenizer: instruction
+  language_text_source: file
+  language_instruction_file: ${JEPAWM_LOGS}/goalhead_eval_instruction/runs/run2_seed1020003/instructions.jsonl
+  goalhead_kind: v2
+  goalhead_cfg:
+    kind: v2
+    visual_depth: 6
+    visual_num_heads: 8
+    text_embed_dim: 256
+    text_depth: 2
+    text_num_heads: 4
+    mlp_ratio: 4
+    dropout: 0.0
+  succ_def: simu
+  done_at_succ: false
+  max_episode_steps: 100
+  goal_H: 6
+  num_frames: 1
+  num_proprios: 1
+  img_size: 224
+  env:
+    with_target: true
+    with_velocity: true
+    freeze_rand_vec: false
+
+planner:
+  planner_name: cem
+  iterations: 15
+  num_samples: 128
+  num_elites: 8
+  horizon: 6
+  var_scale: 1.0
+  num_act_stepped: 2
+  repeat_actskip: false
+  decode_each_iteration: false
+  distribute_planner: false
+  planning_objective:
+    objective_type: L2
+    sum_all_diffs: false
+    alpha: 0.1

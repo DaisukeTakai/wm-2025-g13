@@ -7,6 +7,7 @@
 import importlib
 import logging
 import os
+import csv
 from time import time
 
 import numpy as np
@@ -21,7 +22,11 @@ from evals.simu_env_planning.planning.common.gc_logger import Logger
 from evals.simu_env_planning.planning.common.parser import parse_cfg
 from evals.simu_env_planning.planning.gc_agent import GC_Agent
 from evals.simu_env_planning.planning.plan_evaluator import PlanEvaluator
-from evals.simu_env_planning.planning.utils import aggregate_results, compute_task_distribution, set_seed
+from evals.simu_env_planning.planning.utils import (
+    aggregate_results,
+    compute_task_distribution,
+    set_seed,
+)
 from evals.utils import make_datasets
 from src.utils.yaml_utils import expand_env_vars
 
@@ -49,7 +54,6 @@ torch.backends.cudnn.benchmark = True
 
 
 def main(args_eval, resume_preempt=False):
-
     # Expand environment variables in the config
     args_eval = expand_env_vars(args_eval)
 
@@ -117,10 +121,14 @@ def main(args_eval, resume_preempt=False):
     log.info("✅ Loaded encoder and predictor")
 
     # -- Launch eval
-    main_distributed_episodes_eval(args_eval, model=model, dset=dset, preprocessor=preprocessor, rank=rank)
+    main_distributed_episodes_eval(
+        args_eval, model=model, dset=dset, preprocessor=preprocessor, rank=rank
+    )
 
 
-def main_distributed_episodes_eval(cfg: dict, model=None, dset=None, preprocessor=None, rank=0, device="cuda:0"):
+def main_distributed_episodes_eval(
+    cfg: dict, model=None, dset=None, preprocessor=None, rank=0, device="cuda:0"
+):
     """
     Should work with one or more GPUs, even with distribute_multitask_eval=False.
     If world_size > 1 and distribute_multitask_eval=False, will all have same task_indices
@@ -142,7 +150,9 @@ def main_distributed_episodes_eval(cfg: dict, model=None, dset=None, preprocesso
     log.info(f"{cfg.active_ranks=}")
     if cfg.rank == 0:
         log.info(f"📂 Work dir: {cfg.work_dir}")
-    cfg.task_specification.goal_source = cfg.task_specification.get("goal_source", "expert")
+    cfg.task_specification.goal_source = cfg.task_specification.get(
+        "goal_source", "expert"
+    )
     # DEFINE cfg.action_ratio := simu_actions / wm_fw_passes
     # TODO, replace all mentions of cfg.frameskip by cfg.action_ratio in the logging logic
     # of this script
@@ -161,7 +171,9 @@ def main_distributed_episodes_eval(cfg: dict, model=None, dset=None, preprocesso
         if cfg.distributed.seed_shift == "horizon_1000":
             seed_shift = cfg.planner.horizon * 1000
         else:
-            if isinstance(cfg.distributed.seed_shift, int) or isinstance(cfg.distributed.seed_shift, float):
+            if isinstance(cfg.distributed.seed_shift, int) or isinstance(
+                cfg.distributed.seed_shift, float
+            ):
                 seed_shift = cfg.distributed.seed_shift
             else:
                 ValueError("cfg.distributed.seed_shift does not have correct format")
@@ -170,10 +182,14 @@ def main_distributed_episodes_eval(cfg: dict, model=None, dset=None, preprocesso
         cfg.local_seed += cfg.rank * seed_shift
         if not cfg.distributed.local_rng_samplers:
             set_seed(cfg.local_seed)
-            log.info(f"Local Seed={cfg.local_seed} set for entire eval for rank {cfg.rank}")
+            log.info(
+                f"Local Seed={cfg.local_seed} set for entire eval for rank {cfg.rank}"
+            )
         else:
             # In gc_planning will be used to seed envs
-            log.info(f"Initialized local rng with seed {cfg.local_seed} for rank {cfg.rank}")
+            log.info(
+                f"Initialized local rng with seed {cfg.local_seed} for rank {cfg.rank}"
+            )
 
     if cfg.meta.quick_debug:
         log.info("Quick debug mode enabled.")
@@ -183,7 +199,9 @@ def main_distributed_episodes_eval(cfg: dict, model=None, dset=None, preprocesso
         cfg.planner.num_elites = 2
         cfg.logging.tqdm_silent = False
     if cfg.planner.planner_name in ["cem", "mppi", "nevergrad"]:
-        assert cfg.planner.num_elites <= cfg.planner.num_samples, "num_elites should be <= num_samples"
+        assert cfg.planner.num_elites <= cfg.planner.num_samples, (
+            "num_elites should be <= num_samples"
+        )
         assert cfg.planner.num_elites > 1, "num_elites should be > 1"
 
     # -------------------------
@@ -198,7 +216,31 @@ def main_distributed_episodes_eval(cfg: dict, model=None, dset=None, preprocesso
     evaluator = PlanEvaluator(cfg, agent)
     results = dict()
     processed_episodes = set()
-    for task_pos, (task_idx, episodes) in enumerate(zip(cfg.task_indices, cfg.episodes_per_task)):
+    # Episode-level metrics (for downstream analysis / correlations).
+    # Write only on rank0 to avoid duplicates.
+    episode_metrics_path = None
+    if cfg.rank == 0:
+        episode_metrics_path = os.path.join(cfg.work_dir, "episode_metrics.csv")
+        if not os.path.exists(episode_metrics_path):
+            with open(episode_metrics_path, "w", newline="") as f:
+                w = csv.writer(f)
+                w.writerow(
+                    [
+                        "task",
+                        "ep",
+                        "ep_seed",
+                        "success",
+                        "expert_success",
+                        "reward",
+                        "success_dist",
+                        "end_distance",
+                        "state_dist",
+                        "ep_time",
+                    ]
+                )
+    for task_pos, (task_idx, episodes) in enumerate(
+        zip(cfg.task_indices, cfg.episodes_per_task)
+    ):
         (
             ep_rewards,
             ep_successes,
@@ -251,6 +293,28 @@ def main_distributed_episodes_eval(cfg: dict, model=None, dset=None, preprocesso
             if (task_idx, ep) in processed_episodes:
                 continue  # Skip duplicate dummy episodes logging
             processed_episodes.add((task_idx, ep))
+
+            # Compute ep_seed consistently with PlanEvaluator.eval()
+            ep_seed = (cfg.local_seed * cfg.local_seed + int(ep) * cfg.local_seed) % (
+                2**32 - 2
+            )
+            if episode_metrics_path is not None:
+                with open(episode_metrics_path, "a", newline="") as f:
+                    w = csv.writer(f)
+                    w.writerow(
+                        [
+                            str(cfg.tasks[task_idx]),
+                            int(ep),
+                            int(ep_seed),
+                            float(success),
+                            float(expert_success),
+                            float(ep_reward),
+                            float(success_dist),
+                            float(end_distance),
+                            float(state_dist),
+                            float(episode_end_time - episode_start_time),
+                        ]
+                    )
             ep_rewards.append(ep_reward)
             ep_successes.append(success)
             ep_expert_successes.append(expert_success)
@@ -266,12 +330,30 @@ def main_distributed_episodes_eval(cfg: dict, model=None, dset=None, preprocesso
         # Mean over episodes for each task
         results.update(
             {
-                f"episode_reward+{cfg.tasks[task_idx]}": (np.nansum(ep_rewards), len(ep_rewards)),
-                f"episode_success+{cfg.tasks[task_idx]}": (np.nansum(ep_successes), len(ep_successes)),
-                f"ep_expert_succ+{cfg.tasks[task_idx]}": (np.nansum(ep_expert_successes), len(ep_expert_successes)),
-                f"ep_succ_dist+{cfg.tasks[task_idx]}": (np.nansum(ep_success_dists), len(ep_success_dists)),
-                f"ep_end_dist+{cfg.tasks[task_idx]}": (np.nansum(ep_end_distances), len(ep_end_distances)),
-                f"ep_end_dist_xyz+{cfg.tasks[task_idx]}": (np.nansum(ep_end_distances_xyz), len(ep_end_distances_xyz)),
+                f"episode_reward+{cfg.tasks[task_idx]}": (
+                    np.nansum(ep_rewards),
+                    len(ep_rewards),
+                ),
+                f"episode_success+{cfg.tasks[task_idx]}": (
+                    np.nansum(ep_successes),
+                    len(ep_successes),
+                ),
+                f"ep_expert_succ+{cfg.tasks[task_idx]}": (
+                    np.nansum(ep_expert_successes),
+                    len(ep_expert_successes),
+                ),
+                f"ep_succ_dist+{cfg.tasks[task_idx]}": (
+                    np.nansum(ep_success_dists),
+                    len(ep_success_dists),
+                ),
+                f"ep_end_dist+{cfg.tasks[task_idx]}": (
+                    np.nansum(ep_end_distances),
+                    len(ep_end_distances),
+                ),
+                f"ep_end_dist_xyz+{cfg.tasks[task_idx]}": (
+                    np.nansum(ep_end_distances_xyz),
+                    len(ep_end_distances_xyz),
+                ),
                 f"ep_end_dist_orientation+{cfg.tasks[task_idx]}": (
                     np.nansum(ep_end_distances_orientation),
                     len(ep_end_distances_orientation),
@@ -281,9 +363,18 @@ def main_distributed_episodes_eval(cfg: dict, model=None, dset=None, preprocesso
                     len(ep_end_distances_closure),
                 ),
                 f"ep_time+{cfg.tasks[task_idx]}": (np.nansum(ep_times), len(ep_times)),
-                f"ep_state_dist+{cfg.tasks[task_idx]}": (np.nansum(ep_state_distances), len(ep_state_distances)),
-                f"ep_total_lpips+{cfg.tasks[task_idx]}": (np.nansum(ep_total_lpips), len(ep_total_lpips)),
-                f"ep_total_emb_l2+{cfg.tasks[task_idx]}": (np.nansum(ep_total_emb_l2), len(ep_total_emb_l2)),
+                f"ep_state_dist+{cfg.tasks[task_idx]}": (
+                    np.nansum(ep_state_distances),
+                    len(ep_state_distances),
+                ),
+                f"ep_total_lpips+{cfg.tasks[task_idx]}": (
+                    np.nansum(ep_total_lpips),
+                    len(ep_total_lpips),
+                ),
+                f"ep_total_emb_l2+{cfg.tasks[task_idx]}": (
+                    np.nansum(ep_total_emb_l2),
+                    len(ep_total_emb_l2),
+                ),
             }
         )
 
@@ -299,12 +390,17 @@ def main_distributed_episodes_eval(cfg: dict, model=None, dset=None, preprocesso
             combined_results = aggregate_results(cfg, all_results)
             log.info(f"{combined_results=}")
     else:
-        combined_results = {key: value[0] / value[1] if value[1] > 0 else 0 for key, value in results.items()}
+        combined_results = {
+            key: value[0] / value[1] if value[1] > 0 else 0
+            for key, value in results.items()
+        }
     if cfg.rank == 0:
         metrics = {"total_time": time() - start_time}
         # Create average over tasks
         logger.pprint_multitask(combined_results | metrics, cfg)
-        logger.log(combined_results | metrics, multitask=cfg.task_specification.multitask)
+        logger.log(
+            combined_results | metrics, multitask=cfg.task_specification.multitask
+        )
 
 
 def init_module(
