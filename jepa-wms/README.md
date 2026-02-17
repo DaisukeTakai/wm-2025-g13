@@ -1,3 +1,73 @@
+# wm-2025-g13: Instruction-conditioned GoalHead / Planning (JEPA-WMsベース)
+
+このフォルダ（`jepa-wms/`）は、Meta AI の **JEPA-WMs** をベースに、
+Metaworld における **free-form英語指示（instruction）条件付き GoalHead** と
+planning evaluation（CEM planner）を回すための研究用スナップショットです。
+
+Upstream（本家）:
+- https://github.com/facebookresearch/jepa-wms
+
+## このforkで主に触るところ
+
+### 1) Instruction-conditioned GoalHead 学習
+
+- 設定: `configs/goalhead/metaworld_instruction_goalhead.yaml`
+- 説明: `configs/goalhead/README.md`
+- 実行例:
+
+```bash
+cd jepa-wms
+conda activate jepa-wms
+python setup_macros.py  # macros.py を生成（コミットしない）
+
+python -m app.main --fname configs/goalhead/metaworld_instruction_goalhead.yaml --debug
+```
+
+メモ:
+- データは Hugging Face からロードします（config 内 `hf_repo: wm-2025-g13/metaworld`）。
+- 学習は base sample を instruction variant で水増しします（`k_variants_train`）。
+
+### 2) Planning eval（5 runs）
+
+この評価は「初期観測（init frame）から instruction を生成し、goal image のリーク無し」で回す想定です。
+
+重要スクリプト:
+- `src/scripts/run_eval_5runs_mid20.sh`（offline instruction 生成 + eval）
+- `src/scripts/run_eval_5runs_expert_goalimage_mid20.sh`（expert goal-image 条件の比較）
+
+実行例（重要: `cd jepa-wms/src` から実行）:
+
+```bash
+cd jepa-wms/src
+
+# JEPAWM_* をセット（例は ../init.sh を参照）
+source ../init.sh
+
+# Azure OpenAI を使う場合: ../.env に AZURE_OPENAI_ENDPOINT / AZURE_OPENAI_API_KEY 等を置く
+# （run_eval_5runs_mid20.sh が ../.env を source します）
+
+bash scripts/run_eval_5runs_mid20.sh
+bash scripts/run_eval_5runs_expert_goalimage_mid20.sh
+```
+
+生成物（デフォルト）:
+- `$JEPAWM_LOGS/goalhead_eval_instruction/...`
+
+### 3) Instruction の分析
+
+- 相関分析: `src/scripts/analyze_instruction_correlation.py`
+- UNK率 vs end_distance: `src/scripts/plot_unk_vs_end_distance.py`
+
+## 注意
+
+- `macros.py` は `setup_macros.py` が生成するローカル設定です（生成物なのでコミットしない）。
+- GitHub Actions はルートの `.github/workflows` のみ有効です。この repo では `jepa-wms/.github/workflows` なので通常は動きません。
+
+---
+
+<details>
+<summary><b>Upstream README（参考: facebookresearch/jepa-wms）</b></summary>
+
 <h1 align="center">
     <p>🌍 <b>JEPA-WMs</b></p>
 </h1>
@@ -619,3 +689,5 @@ If you find this repository useful, please consider giving a ⭐ and citing:
       url={https://arxiv.org/abs/2512.24497},
 }
 ```
+
+</details>
