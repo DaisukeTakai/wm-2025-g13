@@ -29,3 +29,6 @@ ${JEPAWM_LOGS}__UNTRACKED/
 
 # Local secrets
 .env
+
+# Auto-generated local config
+macros.py
