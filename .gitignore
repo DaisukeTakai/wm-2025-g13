@@ -1,0 +1,2 @@
+# Ignore agent KB files (only under embedded jepa-wms)
+jepa-wms/**/AGENTS.md
