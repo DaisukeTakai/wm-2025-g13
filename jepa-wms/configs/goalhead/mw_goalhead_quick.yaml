@@ -1,0 +1,104 @@
+app: goalhead
+folder: ${JEPAWM_LOGS}/goalhead/mw_goalhead_quick
+
+# Frozen world model config (EncPredWM wrapper)
+wm_module_name: app.vjepa_wm.modelcustom.simu_env_planning.vit_enc_preds
+wm_checkpoint: https://dl.fbaipublicfiles.com/jepa-wms/mw_jepa-wm.pth.tar
+
+# Pretrain kwargs must match the frozen WM checkpoint architecture.
+# This mirrors the Metaworld JEPA-WM planning config defaults.
+wm_pretrain_kwargs:
+  grid_size: 16
+  tubelet_size_enc: 1
+  use_activation_checkpointing: false
+  action_conditioning: token
+  proprio_encoding: feature
+  num_frames_pred: 4
+  visual_encoder:
+    enc_type: dino
+    enc_version: dinov2_vits14
+    pretrain_enc_path:
+    pretrain_enc_ckpt_key: target_encoder
+    embed_dim: 384
+    enc_use_rope:
+    enc_name:
+    use_sdpa_enc: true
+    num_frames_enc: 16
+    uniform_power: true
+  action_encoder:
+    action_tokens: 1
+    action_emb_dim: 0
+    act_mlp: false
+    action_encoder_inpred: true
+  proprio_encoder:
+    proprio_tokens: 0
+    proprio_emb_dim: 16
+    prop_mlp: false
+    proprio_encoder_inpred: false
+  predictor:
+    tubelet_size: 1
+    pred_num_heads: 16
+    pred_depth: 6
+    pred_embed_dim: 384
+    pred_use_extrinsics: false
+    pred_type: AdaLN
+    act_pred_projector: false
+    use_SiLU: false
+    use_rope: true
+  wm_encoding:
+    batchify_video: true
+    dup_image: false
+    normalize_reps: false
+  attn:
+    local_window_time: 3
+    local_window_h: -1
+    local_window_w: -1
+  heads_cfg:
+    architectures: {}
+
+# Keep the model-side preprocessing consistent with planning configs
+wm_data_aug:
+  normalize:
+    - [0.485, 0.456, 0.406]
+    - [0.229, 0.224, 0.225]
+
+# Minimal WM data dict used only to configure encode() behavior (img_size/frameskip/etc)
+wm_data:
+  dataset_type: custom
+  datasets: [METAWORLD_HF]
+  img_size: 224
+  custom:
+    frameskip: 5
+    action_skip: 1
+    state_skip: 1
+
+# GoalHead training data (HF parquet already in ${JEPAWM_DSET})
+metaworld_data_path: ${JEPAWM_DSET}/Metaworld/data
+task_set: mwgreedy
+split_ratio: 0.9
+seed: 234
+n_rollouts: 200
+pairs_per_rollout: 8
+frameskip: 5
+goal_H: 6
+img_size: 224
+max_text_len: 4
+
+# GoalHead architecture
+goalhead:
+  depth: 2
+  num_heads: 8
+  text_embed_dim: 128
+  mlp_ratio: 4
+  dropout: 0.0
+
+# Optimization
+batch_size: 16
+num_workers: 4
+lr: 0.0003
+weight_decay: 0.0001
+epochs: 1
+lambda_cos: 1.0
+alpha_proprio: 1.0
+
+device: cuda:0
