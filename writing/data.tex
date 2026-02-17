@@ -1,23 +1,44 @@
 \usepackage{color}
 \usepackage{amsmath}
 \usepackage{mathtools}
+\usepackage[dvipdfmx]{graphicx}
+\graphicspath{{figures/}}
+\usepackage[dvipdfmx]{hyperref}
+
+% \usepackage[
+% backend=biber, 
+% style=authoryear, 
+% citestyle=authoryear,
+% autocite=inline,
+% maxcitenames=1
+% ]{biblatex}
+% \DeclareCiteCommand{\parencite}[\mkbibbrackets]
+%   {\usebibmacro{prenote}}
+%   {\usebibmacro{citeindex}\usebibmacro{cite}}
+%   {\multicitedelim}
+%   {\usebibmacro{postnote}}
+% \DeclareDelimFormat{nameyeardelim}{\addspace}
+% \addbibresource{references.bib}
 
 %%
+% ゴール画像を用いない言語条件付き潜在プランニング\\：JEPA World Models における実現可能性評価
+% JEPA World Models におけるゴール画像を用いない言語条件付き潜在プランニングの実現可能性
 \title{
-\jtitle{言語指示で変化させた潜在表現は制御に足りるか：JEPA World Models における実現可能性評価 }
+\jtitle{JEPA World Models におけるゴール画像を用いない\\言語条件付き潜在プランニングの実現可能性}
 \etitle{Language-Conditioned Latent Planning without Goal Images in Joint-Embedding Predictive World Models}
 }
 %%英文は以下を使用
 %\title{Style file for manuscripts of JSAI 20XX}
-
-\jaddress{氏名，所属，住所，電話番号，Fax番号，電子メールアドレスなど}
-
+% 氏名，所属，住所，電話番号，Fax番号，電子メールアドレスなど
+\jaddress{
+高井大輔，東京大学大学院医学系研究科外科学専攻救急・集中治療専攻，東京都文京区本郷7-3-1，daisuke-takai@g.ecc.u-tokyo.ac.jp
+}
 \author{%
-\jname{高橋諒\first}
-\ename{Ryo Takahashi}
-\and
-\jname{高井大輔\second}
+\jname{高井大輔\first}
 \ename{Daisuke Takai}
+\and
+\jname{高橋諒\second}
+\ename{Ryo Takahashi}
 \and
 \jname{石田涼太\third}
 \ename{Ryota Ishida}
@@ -31,17 +52,17 @@
 }
 
 \affiliate{
-\jname{\first{}会津大学コンピュータ理工学部}
-\ename{University Of Aizu}
+\jname{\first{}東京大学大学院医学系研究科}
+\ename{Graduate School of Medicine, The University of Tokyo}
 \and
-\jname{\second{}東京大学大学院医学系研究科}
-\ename{The University of Tokyo}
+\jname{\second{}会津大学コンピュータ理工学部コンピュータ理工学科}
+\ename{School of Computer Science and Engineering, University Of Aizu}
 \and
-\jname{\third{}九州工業大学情報工学部}
-\ename{Kyushu Institute of Technology}
+\jname{\third{}九州工業大学情報工学部知能情報工学科}
+\ename{School of Computer Science and Systems Engineering, Kyushu Institute of Technology}
 \and
 \jname{\fourth{}東京大学大学院工学系研究科}
-\ename{The University of Tokyo}
+\ename{Graduate School of Engineering, The University of Tokyo}
 %\and
 %\third{}Affiliation \#3 in English%%英文は左を使用
 }
@@ -51,9 +72,14 @@
 %\session{0A0-00}%% <-- 講演ID（必須)
 
 \begin{abstract}
-Here is an abstract of up to 150 words in English or 300 characters in Japanese.
-This document describes the format guidelines for Japanese manuscripts in \LaTeX{} of the annual conference of JSAI.
-This is also a sample of a formatted manuscripts (see 2.4 for writing the abstract).
+% Here is an abstract of up to 150 words in English or 300 characters in Japanese.
+% This document describes the format guidelines for Japanese manuscripts in \LaTeX{} of the annual conference of JSAI.
+% This is also a sample of a formatted manuscripts (see 2.4 for writing the abstract).
+% 生成を伴わない JEPA-WM を基盤に，初期観測 $I_0$ と言語指示 $T$ を入力として，ゴール画像から得た潜在表現 $z_{\mathrm{goal}}^{\mathrm{img}}$ を教師信号に GoalHead を学習し，推定した潜在ゴール表現 $z_{\mathrm{goal}}$ に基づいて潜在空間 MPC（CEM）で行動系列を最適化する言語条件付き潜在プランニングを検討した．
+% MetaWorld（reach/reach-wall，各20エピソード5シード）で評価した結果，ゴール画像を用いた比較手法（成功率0.52）には及ばないものの，提案手法も一定の成功率（0.15）を示した．指示の曖昧性や語彙制約が性能低下の一因と考えられ，指示設計と視覚・言語表現の整合性向上が今後の課題である．
+% 138 words
+We study language-conditioned latent planning without goal images at test time using a non-generative JEPA-WM world model. A GoalHead is trained to map an initial observation and a free-form instruction to a latent goal, supervised by the latent embedding of the paired goal image during training. At inference, actions are planned by optimizing action sequences in latent space via model predictive control with the cross-entropy method.
+On MetaWorld reach and reach-wall (20 episodes per task, 5 seeds), an oracle baseline that observes the goal image reaches 0.52 success, while our language-conditioned method achieves 0.15. This result shows that language-derived latent goals can provide a usable conditioning signal for JEPA-based planning, but that errors in goal estimation remain a dominant bottleneck. We expect structured instruction design and stronger cross-modal alignment objectives to substantially narrow the gap to goal-observed planning.
 \end{abstract}
 
 %\setcounter{page}{1}
@@ -66,127 +92,285 @@ This is also a sample of a formatted manuscripts (see 2.4 for writing the abstra
 \begin{document}
 \maketitle
 
+% =========================
+% 1. 序論
+% =========================
+
 \section{序論}
-物理環境における汎用的なタスク解決では、状態・行動系列から遷移を学習した世界モデルに基づく計画が有効である。
-近年は、画像などの観測空間で将来を逐次生成して評価する代わりに、表現空間（潜在空間）でダイナミクスをロールアウトし、モデル予測制御（MPC）等で行動系列を最適化する枠組みが広く用いられている。
-とりわけ、生成の忠実度に依存せず表現の予測整合性を重視するJoint-Embedding Predictive Architecture（JEPA）系世界モデルは、非生成的設計により計画へ接続しやすい一方、潜在表現が制御に必要な情報を十分保持しているかという実現可能性の検証が課題として残る。
-既存のJEPA系ゴール条件付き制御は、ゴール画像から目標潜在を得る条件での評価が中心である。
-しかし実運用では、目標状態を画像で提示できるとは限らず、言語指示による目標指定が自然である。
-言語条件付きロボティクス（命令追従、VLA等）は進展しているものの、非生成的な表現空間計画において、言語から直接推定した潜在ゴールが計画・制御に十分な目標表現となり得る条件は明確でない。
-言語の曖昧性や、成功に必要な視覚差分の小ささは、潜在ゴール同定の不確実性を増大させ、制御性能の劣化に結び付く可能性がある。
-本研究は、生成を伴わないJEPAの設計思想を保持したまま、開始画像 $I_0$ と指示文 $T$ から到達状態を表す目標潜在 $z_{goal}$ を推定し、潜在空間MPCにより行動系列を最適化する言語条件付き潜在計画を検討する。
-Metaworldタスク集合で、先行研究で一般的なゴール画像提示条件を比較基準として、言語条件下での目標潜在推定誤差（L2距離・コサイン距離）と制御性能（成功率・到達ステップ）を対応付けて評価し、言語で誘導した潜在表現が制御に足りる成立範囲と限界、ならびに性能低下の要因を定量的に明らかにする。
+物理環境における汎用的なタスク解決では，状態・行動系列から遷移を学習した世界モデルに基づくプランニングが有効である\cite{world_models}．
+近年は，画像などの観測空間で将来を逐次生成して評価する代わりに，潜在空間でダイナミクスをロールアウトし，モデル予測制御（MPC）等で行動系列を最適化する枠組みが広く用いられている．
+とりわけ，生成の忠実度に依存せず表現の予測整合性を重視するJoint-Embedding Predictive Architecture（JEPA） \cite{jepa} 系世界モデルは，非生成的設計によりプランニングへ接続しやすい一方，潜在表現が制御に必要な情報を十分保持しているかという実現可能性の検証が課題として残る．
+既存のJEPA系ゴール条件付き制御は，ゴール画像から潜在ゴール表現を得る条件での評価が中心である．
+しかし実運用では，目標状態を画像で提示できるとは限らず，言語指示による目標指定が自然である．
+Vision-Language-Action Models といった言語条件付きロボティクスは進展しているものの \cite{rt2} ，非生成的な潜在空間プランニングにおいて，言語から直接推定した潜在ゴール表現がプランニング・制御に十分な目標表現となり得る条件は明確でない．
+言語の曖昧性や，成功に必要な視覚差分の小ささは，潜在ゴール表現同定の不確実性を増大させ，制御性能の劣化に結び付く可能性がある．
+本研究は，生成を伴わないJEPAの設計思想を保持したまま，初期観測 $I_0$ と指示文 $T$ から到達状態を表す潜在ゴール表現 $z_{goal}$ を推定し，潜在空間MPCにより行動系列を最適化する言語条件付き潜在プランニングを検討する．
+MetaWorldタスク集合 \cite{metaworld} で，先行研究で一般的なゴール画像提示条件を比較基準として，言語条件下での潜在ゴール表現の制御性能（成功率・報酬・終了時距離）を評価し，言語で誘導した潜在表現が制御に足りる成立範囲と限界，ならびに性能低下の要因を定量的に明らかにする．
+
+% =========================
+% 2. 関連研究
+% =========================
 
 \section{関連研究}
 
-\subsection{JEPAと表現空間計画（V-JEPA2、JEPA-WM、DINO-WM）}
-世界モデルに基づく計画は、学習した遷移モデルのロールアウトに対して行動系列を最適化する枠組みであり、画像観測ではピクセル空間での逐次生成が誤差累積や計算コストの点で課題となりやすい。
-近年はこの問題を回避するため、観測を表現空間（潜在空間）へ写像し、表現上で将来を予測して最適化する「表現空間計画」が広く用いられている。
-JEPAは、入力の詳細を再構成するのではなく、下流タスクに有用な表現を直接予測する点に特徴がある。
-V-JEPA2は生成を伴わない自己教師あり動画事前学習（action-free JEPA）を基盤に、理解・予測・計画を一貫して扱う枠組みを提示し、さらに少量の相互作用データで行動条件付き世界モデル（V-JEPA2-AC）へ接続して、ゴール画像由来の目標表現を用いた計画と実機デモを報告している\cite{v_jepa2}。
-本研究が扱う課題は、この「ゴール画像→目標表現」の前提を外し、言語から推定した目標潜在が表現空間計画に十分か（実現可能性）を検証する点にある。
-またDINO-WMは、事前学習済み視覚特徴上で将来特徴を予測し、目標特徴への到達を行動系列最適化として解くことで、再構成を介さないゼロショット計画を提示している\cite{dino_wm}。
-TerverらはJEPA系世界モデルによる物理計画をJEPA-WMとして整理し、モデル設計・学習目的・計画アルゴリズムの選択が成功率を左右することを系統的に示すとともに、得られた知見を統合した構成が、同論文のナビゲーション／マニピュレーション課題においてDINO-WMおよびV-JEPA2-ACを上回ることを報告した\cite{jepa_wm}。
+\subsection{JEPAと潜在空間プランニング（V-JEPA2，JEPA-WM，DINO-WM）}
+世界モデルに基づくプランニングは，学習した遷移モデルのロールアウトに対して行動系列を最適化する枠組みであり，画像観測ではピクセル空間での逐次生成が誤差累積や計算コストの点で課題となりやすい．
+近年はこの問題を回避するため，観測を潜在空間へ写像し，表現上で将来を予測して最適化する「潜在空間プランニング」が広く用いられている．
+JEPAは，入力の詳細を再構成するのではなく，下流タスクに有用な表現を直接予測する点に特徴がある．
+V-JEPA2は生成を伴わない自己教師あり動画事前学習（action-free JEPA）を基盤に，理解・予測・プランニングを一貫して扱う枠組みを提示し，さらに少量の相互作用データで行動条件付き世界モデル（V-JEPA2-AC）へ接続して，ゴール画像由来の目標表現を用いたプランニングと実機デモを報告している\cite{v_jepa2}．
+本研究は，ゴール画像を前提とせず，初期観測 $I_0$ と言語指示 $T$ から推定した潜在ゴール表現により潜在空間プランニングが成立するかを検証する．
+またDINO-WMは，事前学習済み視覚特徴上で将来特徴を予測し，目標特徴への到達を行動系列最適化として解くことで，再構成を介さないゼロショットプランニングを提示している\cite{dino_wm}．
+TerverらはJEPA系世界モデルによる物理プランニングをJEPA-WMとして整理し，モデル設計・学習目的・プランニングアルゴリズムの選択が成功率を左右することを系統的に示すとともに，得られた知見を統合した構成が，同論文のナビゲーション／マニピュレーション課題においてDINO-WMおよびV-JEPA2-ACを上回ることを報告した\cite{jepa_wm}．
 
 \subsection{言語・マルチモーダルJEPA（VL-JEPA）と指示条件付き制御}
-言語指示に基づく制御では、視覚と言語を統合して目標を表現し、計画・制御へ接続する必要がある。VL-JEPAは自己回帰的トークン生成ではなく、テキストの連続埋め込みを予測するJEPAとして視覚言語モデルを構成し、表現空間で意味を捉える設計を提案している\cite{vl_jepa}。
-本研究は、VL-JEPAを生成器として用いず、言語表現を介して目標潜在を推定し、潜在空間MPCで行動系列を最適化する。
-先行研究で一般的なゴール画像由来の目標潜在を比較基準として、言語条件下での目標潜在推定誤差と制御性能の対応から、言語条件付き表現空間計画の成立範囲を定量化する。
+言語指示に基づく制御では，視覚と言語を統合した目標表現を獲得し，それをプランニング・制御へ接続することが重要である．VL-JEPA は，従来の視覚言語モデルのように自己回帰的にトークンを生成するのではなく，ターゲットテキストの連続埋め込みを潜在空間で予測する JEPA として視覚言語モデルを構成し，表層的な言語表現の揺らぎよりもタスク関連の意味表現に焦点を当てる枠組みを提示した\cite{vl_jepa}．一方で，このような言語由来の潜在表現が，行動最適化を要する潜在空間プランニングにおいて目標条件として十分に機能するか，すなわち,推定された目標表現のみから実行可能な行動系列を安定に導けるかは必ずしも明らかでない．本研究はこの未解決点に着目し，初期観測と言語指示から推定した潜在ゴール表現を用いて潜在空間 MPC を行動系列を最適化できるかを検証する．
+
+% =========================
+% 3. 提案手法
+% =========================
 
 \section{提案手法}
 
 \subsection{問題設定}
-開始観測（画像）$I_0$  と指示文 $T$ が与えられたとき，指示に対応する目標状態へ到達する有限長の行動系列 ${a}_{0:N} \coloneq (a_0, \dots, a_N)$ を求めることを目的とする。
-本研究では，画像観測を潜在表現へ写像する画像エンコーダ $E_{img}$ ，潜在表現の遷移を予測するダイナミクスモデル $f$，テキストを埋め込みへ写像するテキストエンコーダ $E_{text}$ を事前学習済みとして固定し（凍結），学習対象は目標潜在を推定する軽量ヘッドのみとする。
 
-\subsection{目標潜在推定}
-開始画像の潜在表現を $z_0 = E_{img}(I_0)$，指示文の埋め込みを $u = E_{text}(T)$ とする。
-目標潜在 $z_{goal}$ は，$z_0$ と $u$ に条件付けて小規模ネットワーク $G_\theta$（GoalHead）により推定し、
-\begin{equation}
-    \hat{z}_{goal} = G_\theta(z_0, u)
-\end{equation}
-と定義する。
+本研究の主目的は，ゴール画像を直接観測できない状況で，初期観測 $I_0$ と自然言語指示 $T$ から推定した言語条件付き潜在ゴール表現が，JEPA-WM による潜在空間プランニングに十分な条件付け情報となりうるかを検証することである．このため，視覚＋固有感覚系列から将来状態の表現を予測できる世界モデルとして JEPA-WM を用い，推定潜在ゴール表現に基づくゴール条件付きプランニングによりタスクを解く．
 
-学習時には，各タスクについて用意したゴール画像 $I_{goal}$ を画像エンコーダに通して教師潜在 $z_{goal} = E_{img}(I_{goal})$ を構成し，推定潜在 $\hat{z}_{goal}$ が $z_{goal}$ に一致するようにパラメータ $\theta$ を学習する。
-損失関数は，スケールのずれに頑健な方向一致と，絶対距離の両方を反映するため，$L_2$ 距離とコサイン距離を組み合わせて
+JEPA-WMは，画像観測および固有感覚をそれぞれ潜在表現へ写像する視覚エンコーダ $e_{\mathrm{img}}$ および固有感覚エンコーダ $e_{\mathrm{prop}}$ と，行動条件付きに潜在遷移を予測するダイナミクスモデル $f$ から構成される．本研究では，先行研究 \cite{jepa_wm} の学習済みモデルを用い，すべての JEPA-WM のモデルを凍結して使用する．プランニング時には，固定したモデルにより潜在空間上でロールアウトを行う．
+
+言語条件付けのために，JEPA-WM とは独立のテキストエンコーダ $e_{\mathrm{text}}$ と，言語指示に基づき潜在ゴール表現を推定する軽量ヘッド $g_{\theta}$（GoalHead）を導入する．学習対象は $e_{\mathrm{text}}$ と $g_{\theta}$ のみとし,同時に学習する．$g_{\theta}$ により推定された潜在ゴール表現は潜在空間 MPC の目標として用いられる．
+
+\subsection{潜在ゴール表現推定（GoalHead）}
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\textwidth]{architecture.pdf} 
+  \caption{提案手法の全体構成．左側に学習フェーズ，右側にプランニングフェーズを示す．}
+  \label{fig:full_architecture}
+\end{figure*}
+
+提案手法の全体構成を図\ref{fig:full_architecture}に示す．指示文 $T$ は，まずタスク固有の語彙セットに基づくトークナイザーによって one-hot ベクトル系列へと変換される．テキストエンコーダ $e_{\mathrm{text}}$ は MLP で構成され，これら one-hot 系列を入力として文全体の情報を集約した言語埋め込み $u = e_{\mathrm{text}}(T)$ を出力する．
+
+この言語埋め込み $u$ と初期観測の潜在表現 $z_0 = e_{\mathrm{img}}(I_0)$ を用いて，潜在ゴール表現 $\hat{z}_{\mathrm{goal}}$ は小規模ネットワーク $g_{\theta}$ により，
 \begin{equation}
-    \mathcal{L}(\theta)
-    =
-    \left\lVert
-    \hat{z}_{goal} - z_{goal}
-    \right\rVert_2^2
-    +
-    \lambda \left(
-    1 - \cos\!\left(
-        \hat{z}_{goal},\, z_{goal}
-        \right)
-    \right)
+\hat{z}_{\mathrm{goal}} = g_\theta(z_0, u)
+\tag{1}
 \end{equation}
-とする。ここで $\lambda$ は各項の寄与を調節するハイパーパラメータである。
+と定義する．学習時には，各タスクについて用意したゴール画像$I_g$を画像エンコーダ$e_{\mathrm{img}}$に通して教師潜在$z_g=e_{\mathrm{img}}(I_g)$を構成し，$\hat{z}_{\mathrm{goal}}$が$z_g$に一致するように $e_{\mathrm{text}}$ と $g_{\theta}$ を学習する．損失関数は，方向一致と絶対距離を併せて評価するため，L2距離とコサイン距離を組み合わせて
+\begin{equation}
+\mathcal{L}(\theta)
+= \left\lVert \hat{z}_{\mathrm{goal}} - z_g \right\rVert_2^2
++ \lambda \left( 1 - \cos(\hat{z}_{\mathrm{goal}}, z_g) \right)
+\tag{2}
+\end{equation}
+とする（$\lambda$はハイパーパラメータ）．
 
 \subsection{潜在空間MPCとCEM}
-計画は潜在空間でのモデル予測制御（MPC）として行う。
-時刻 $t$ における潜在 $z_{t}$ （実装上は $z_{t}=E_{img}(I_{t})$）から，ホライズン $H$ の候補行動系列 $a_{t:t+H-1}$  をサンプリングし，ダイナミクス $f$ によりロールアウトして予測終端潜在 $\tilde{z}_{t+H}$ を得る。
-コスト関数は推定目標潜在 $\hat{z}_{goal}$ への近さとして
+プランニングは潜在空間でのモデル予測制御（MPC）として行う．時刻$t$における潜在表現 $z_t=e_{\mathrm{img}}(I_t)$ を起点として，ホライズン$H$の候補行動系列$\mathbf{a}_{t:t+H-1}$をサンプリングし，ダイナミクス$f$によりロールアウトして潜在終端状態$\tilde{z}_{t+H}$を得る．コスト関数は推定潜在$\hat{z}_{\mathrm{goal}}$への近さとして
 \begin{equation}
-    J(\mathbf{a}_{t:t+H-1})
-    = d\bigl(\tilde{z}_{t+H}, \hat{z}_{goal}\bigr)
+J(\mathbf{a}_{t:t+H-1}) = d(\tilde{z}_{t+H}, \hat{z}_{\mathrm{goal}})
+\tag{3}
 \end{equation}
-を最小化する（$d$ はL2距離またはコサイン距離に基づく距離）。最適化にはCross-Entropy Method（CEM）を用い，行動系列分布から多数サンプルを生成して評価し，上位（エリート）集合から分布を更新する操作を反復する。
-最終的に得られた最良系列の先頭行動 $a_t$  のみを環境に適用し，次時刻へ進むリシーディングホライズン方式で繰り返す。
+を最小化する（$d$はL2距離またはコサイン距離に基づく距離）．最適化にはCross-Entropy Method（CEM）を用い，行動系列分布から多数サンプルを生成して評価し，上位（エリート）集合から分布を更新する操作を反復する\cite{cem_pets}．最終的に得られた最良系列の先頭行動$a_t$のみを環境に適用し，次時刻へ進むリシーディングホライズン方式で繰り返す．
 
-\section{実験}
+\subsection{データセット作成}
+ゴール画像を入力として与えず，初期観測と指示文から潜在ゴール表現を推定する GoalHead の学習データを得るため，MetaWorld の mw-reach および mw-reach-wall を対象に，初期観測とゴール画像からなる画像ペアに，対応する自然言語指示文を付与したデータセットを構築した．
 
-\subsection{実験環境}
-本研究では、提案手法の有効性を検証するため、 ロボット操作のベンチマークである Metaworld \cite{metaworld} を用いた。
-全42種類のタスクのうち、Terverら \cite{jepa_wm} の先行研究と同様に、 Reach (MW-R) および Reach-wall (MW-RW) タスクを選択して評価を行った。
+各エピソードでは乱数シードにより環境初期化を行い，オブジェクト配置やタスク条件がエピソードごとに変化するように設定した．初期観測を取得し，同一の乱数シードに基づく環境条件の下で MetaWorld に標準実装されているエキスパート方策をロールアウトして終了状態まで到達させることで，対応するゴール画像を得た．これにより，（初期観測, ゴール画像）のペアは同一エピソード内で整合した配置・物理条件を共有する．mw-reach，mw-reach-wallを各5,000エピソードを収集した．
 
-\subsection{}
+各（初期観測, ゴール画像）ペアに対してVision-Language Model（OpenAI / GPT-5.2 \cite{gpt52}）を用い，初期状態から目標状態へ遷移するための英語指示文をプロンプトで制約をかけた上で10パターン生成した．これにより，タスク条件と整合した多様な言語表現を付与し，言語表現の揺らぎに対して頑健なGoalHead学習を可能にした．
+
+% =========================
+% 4. 実験結果
+% =========================
+
+\section{実験結果}
+
+\subsection{評価設定}
+
+本研究の主要評価は，ゴール画像を入力として一切与えない条件で実施する．
+評価時にエージェントが利用できる情報は，エピソード開始時点の初期観測（初期画像および固有感覚）と，
+タスク名（mw-reach / mw-reach-wall）のみである．
+ゴール画像，将来フレーム，エキスパート軌跡など，目標状態を直接示す情報は使用しない．
+言語指示は，各エピソードの初期観測のみを入力として GPT-5.2 により生成した．
+
+評価時は，初期観測を JEPA-WM のエンコーダにより潜在表現へ変換し，自由文指示を条件として GoalHead が潜在ゴール表現を予測する．CEM プランナーにより，この予測潜在ゴール表現に対する潜在距離（L2 距離またはコサイン距離）を最小化するように行動系列を最適化する．
+
+比較のため，ゴール画像を用いて
+潜在ゴール表現を直接与える比較も別途評価する．
+ただし，これは「ゴール画像を与えない」主要評価設定とは異なる参照実験であるため，
+提案手法の評価結果とは区別して報告する．
+
+\subsection{プランニング評価結果}
+2タスク（mw-reach, mw-reach-wall）各20エピソードに対し，5つのシードを用いて評価を行った．結果を表\ref{tab:combined_result_vertical}に示す．比較は，提案手法（初期観測 $\rightarrow$ 言語指示 $\rightarrow$ GoalHead $\rightarrow$ 潜在プランニング）と，ゴール画像を直接与える比較手法で行い，両者で同一のCEMプランナー設定を用いた．提案手法は，全体成功率 0.15 と，比較手法である 0.52 を下回った．報酬および終端距離についても，同様に比較手法の方が優れた値を示した．一方，タスク別に成功率を比較すると，mw-reach-wall と mw-reach の間で顕著な差は認められなかった．
+
+提案手法と比較手法のエピソード単位での成功可否を比較した結果を表\ref{tab:episode_level_comparison}に示す．
+両手法がともに成功したエピソードは17件，比較手法のみが成功したエピソードは86件であった．
+一方，提案手法のみが成功したエピソードは13件，両手法ともに失敗したエピソードは84件であった．
+
 \begin{table}[t]
-    \centering
-    \caption{Metaworld結果}
-    \label{tab:result}
-    \begin{tabular}{lcc}
-        \hline
-        モデル     & MW-R       & MW-RW      \\
-        \hline
-        JEPA WM & \textbf{a} & \textbf{a} \\
-        提案手法    & b          & b          \\
-        \hline
-    \end{tabular}
+\centering
+\caption{評価結果およびタスク別成功率（各20エピソード，5シードの平均 $\pm$ 標準偏差）}
+\label{tab:combined_result_vertical}
+\begin{tabular}{lcc}
+\hline
+指標 & 提案手法 & 比較手法 \\
+\hline
+全体成功率                & $0.15 \pm 0.042$ & $0.52 \pm 0.12$ \\
+\quad mw-reach          & $0.12 \pm 0.068$ & $0.57 \pm 0.16$ \\
+\quad mw-reach-wall     & $0.18 \pm 0.051$ & $0.46 \pm 0.15$ \\
+\hline
+報酬                     & $596.63 \pm 6.86$            & $679.71 \pm 13.40$ \\
+終端距離                  & $0.065 \pm 0.0021$    & $0.044 \pm 0.0049$ \\
+\hline
+\end{tabular}
 \end{table}
 
+\begin{table}[t]
+  \centering
+  \caption{エピソード単位での手法による成功の比較}
+  \label{tab:episode_level_comparison}
+  \begin{tabular}{lccr}
+    \hline
+    & \multicolumn{2}{c}{提案手法} & \\
+    比較手法 & 成功 & 失敗 & 合計 \\
+    \hline
+    成功 & 17 & 86 & 103 \\
+    失敗 & 13 & 84 & 97 \\
+    \hline
+    合計 & 30 & 170 & 200 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+\begin{table}[t]
+  \centering
+  \caption{UNK率で層別した成功率}
+  \label{tab:unk_cutoff_02_compact}
+  \small
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{lrrl}
+    \hline
+    条件 & $n$ & 成功率 & 95\%CI \\
+    \hline
+    全体・低UNK（$\le 0.2$） & 119 & 0.19 & [0.13, 0.26] \\
+    全体・高UNK（$> 0.2$）   & 81  & 0.10 & [0.05, 0.18] \\
+    \hline
+    reach・低UNK（$\le 0.2$） & 29 & 0.17 & [0.08, 0.35] \\
+    reach・高UNK（$> 0.2$）   & 71 & 0.10 & [0.05, 0.19] \\
+    \hline
+    reach-wall・低UNK（$\le 0.2$） & 90 & 0.19 & [0.12, 0.28] \\
+    reach-wall・高UNK（$> 0.2$）   & 10 & 0.10 & [0.02, 0.40] \\
+    \hline
+  \end{tabular}
+  \vspace{1mm}
+
+
+  {\footnotesize
+  UNK: unknown token
+  }
+\end{table}
+
+\subsection{評価結果に関わる要因分析}
+本研究では，3.2節で述べた通り，タスク固有の語彙セットに基づくトークナイザーを構築した．
+この構築プロセスの制約のため，評価時の自由文指示において，語彙に含まれない単語が発生することがあった．
+テキストエンコーダの語彙外表現（unknown token; UNK）が性能に与える影響を検討するため，トークナイザーにおける UNK 率を閾値 0.2 で層別し，比較した．結果を表 \ref{tab:unk_cutoff_02_compact} に示す．全体では，低 UNK 群（UNK 率 $\le 0.2$）の成功率は 0.19（$n=119$）であり，高 UNK 群（UNK 率 $>0.2$）の 0.10（$n=81$）を上回った．タスク別に見ても同様の傾向がみられ，mw-reach では低 UNK 群 0.17（$n=29$），高 UNK 群 0.10（$n=71$）であった．mw-reach-wall でも低 UNK 群は 0.19（$n=90$）であり，高 UNK 群は 0.10（$n=10$）に留まった．
+
+% =========================
+% 5. 考察
+% =========================
 \section{考察}
 
+本研究は，ゴール画像を一切与えず，初期観測とタスク名のみから生成した自由文指示を用いて，GoalHead が潜在ゴール表現を推定し，その潜在距離を最小化することでプランニングを行う枠組みを評価した．
+その結果，提案手法の全体成功率は $0.15 \pm 0.042$ と，ゴール画像を直接与える比較手法（$0.52 \pm 0.12$）を下回った．
+しかし，目標状態に関する直接的な観測情報を一切利用しないという厳しい条件下においても，一定割合のエピソードでタスクを達成できた点は注目に値する．
+これは，言語を介して推定された潜在ゴール表現が，少なくとも一部の状況では，潜在空間プランニングに有効な条件付け情報として機能しうることを示唆している．
+
+提案手法が比較手法に劣った主因は，プランニングアルゴリズムそのものではなく，プランニング目標として用いる潜在ゴール表現の推定誤差にあると考えられる．
+いずれの手法も同一のCEMプランナー設定を用いており，性能差は潜在ゴール表現の与え方の違いに起因する．
+比較手法では，ゴール画像から得られる潜在表現が直接与えられるため，潜在距離最小化が常に正しい目標状態への誘導信号として機能する．
+一方，提案手法では，初期観測と自由文指示のみから推定された潜在ゴール表現に不確実性が含まれる．
+それにもかかわらず，成功率がゼロに近づくことなく一定水準を維持したことは，言語条件付き潜在ゴール表現が「完全ではないが実用的な近似目標」として機能したことを意味する．
+
+mw-reach と mw-reach-wall の間で，提案手法の成功率に顕著な差がみられなかった点も重要である．
+障害物を含む mw-reach-wall においても性能が大きく低下しなかったことは，失敗要因が単純な環境制約の増加ではなく，より上流の潜在ゴール表現の推定に支配されていることを示唆する．
+言い換えると，言語条件付き潜在ゴール表現が一定の妥当性を持つ限り，プランニングアルゴリズムはタスク固有の制約をある程度吸収できている可能性がある．
+この結果は，言語条件付き潜在プランニングが，単純タスクに限定されない一般的枠組みとして成立する余地を示している．
+
+UNK率による層別解析では，低UNK群（UNK率$\le 0.2$）の成功率は 0.19 と，高UNK群（0.10）を一貫して上回った．
+この傾向は両タスクに共通しており，言語表現の劣化がそのままプランニング性能の低下に結びつくことを示している．
+語彙が十分にカバーされ，指示文が適切に解釈された場合には，言語由来の潜在ゴール表現が実用的な精度に達しうることを示唆する．
+すなわち，提案手法の性能限界は，言語条件付けそのものの原理的破綻ではなく，実装上の言語表現制約に強く依存している可能性が高い．
+
+本結果は，言語条件付き潜在ゴール表現が，ゴール画像に代替しうる完全な情報源ではない一方で，プランニングを完全に破綻させるほど不十分でもないことを示している．
+言語は，精密な終端状態を一意に指定するには不十分であるが，目標方向や達成すべき領域といった粗い条件付けとしては有効であり，潜在空間計画において意味のある誘導信号となりうる．
+この「弱いが有効な目標信号」としての位置付けは，ゴール画像が得られない現実的な設定において，言語条件付きプランニングが果たしうる役割を明確にする．
+
+本研究の限界として，語彙制約による情報欠落，評価タスクの限定性が挙げられる．
+一方で，UNK率解析が示す通り，これらの多くは設計・実装上の改善によって性能向上が見込まれる課題でもある．
+今後は，語彙外表現に頑健な言語エンコーディングや，潜在ゴール表現の不確実性を考慮したプランニングアルゴリズムを導入することで，
+言語条件付き潜在プランニングの実用性をさらに引き上げられると期待される．
+
+% =========================
+% 6. 結語
+% =========================
 
 \section{結語}
 
+本研究では，ゴール画像や将来観測を一切用いず，初期観測とタスク名のみから生成した言語指示を介して潜在ゴール表現を推定し，JEPA-WM に基づく潜在空間プランニングを行う枠組みを検証した．
+JEPA-WM自体には言語処理機構を含めず，テキストエンコーダと軽量なGoalHeadのみを学習対象とする構成とすることで，JEPAの設計思想を保持したまま言語条件付けを実現した点に本研究の特徴がある．
+その結果，提案手法の性能はゴール画像を直接与える比較手法には及ばなかったものの，目標状態に関する直接的な観測情報を欠いた条件下においても，一定割合のエピソードでタスク達成が可能であることを示した．
+また，UNK率による層別解析から，言語表現の品質が計画性能に強く影響することが示唆され，言語条件付き潜在ゴール表現が「弱いが有効な目標信号」として機能しうる可能性が明らかになった．
+これらの結果は，言語を介したゴール条件付けが，潜在空間プランニングにおける現実的な代替手段となりうることを示すとともに，語彙表現や潜在ゴール表現推定の改良によってさらなる性能向上が期待できることを示している．
 
 \begin{thebibliography}{99}
+    \bibitem[Ha 18]{world_models}
+    Ha,~D. and Schmidhuber,~J.:
+    Recurrent World Models Facilitate Policy Evolution,
+    Proc. 31st Advances in Neural Information Processing Systems (NeurIPS) (2018).
+    %
+    \bibitem[LeCun 22]{jepa}
+    LeCun,~Y.:
+    A path towards autonomous machine intelligence,
+    Open Review (2022).
+    %
+    \bibitem[Brohan 23]{rt2}
+    Brohan,~A., Brown,~N., Carbajal,~J. et al.:
+    RT-2: Vision-Language-Action Models Transfer Web Knowledge to Robotic Control,
+    Proc. Conf. Robot. Learning (CoRL) (2023).
+    %
     \bibitem[Yu 19]{metaworld}
-    Yu,~T., Quillen,~D., He,~Z., Julian,~R., Hausman,~K., Finn,~C. and Levine,~S.:
+    Yu,~T., Quillen,~D., He,~Z. et al.:
     Meta-World: A Benchmark and Evaluation Federation for Multi-Task and Meta-Reinforcement Learning,
-    Proc. Conf. Robot. Learning (CoRL), pp.~1--11 (2019).
-    \bibitem[Chua 18]{cem_pets}
-    Chua,~K., Calandra,~R., McAllister,~R. and Levine,~S.:
-    Deep Reinforcement Learning in a Handful of Trials using Probabilistic Dynamics Models,
-    Advances in Neural Information Processing Systems (NeurIPS), Vol.~31, pp.~4754--4765 (2018).
-    \bibitem[Seitaridis 25]{dino_wm}
-    Seitaridis,~P., Hafner,~D., Shafiullah,~N.~M.~M., Pinto,~L. and Kostrikov,~I.:
+    Proc. Conf. Robot. Learning (CoRL) (2019).
+    %
+    \bibitem[Assran 25]{v_jepa2}
+    Assran,~M., Bardes,~A., Fan,~D. et al.:
+    V-JEPA 2: Self-Supervised Video Models Enable Understanding, Prediction and Planning,
+    arXiv preprint arXiv:2506.09985 (2025).
+    %
+    \bibitem[Zhou 25]{dino_wm}
+    Zhou,~G., Pan,~H., LeCun,~Y. and Pinto,~L.:
     DINO-WM: World Models on Pre-trained Visual Features,
-    arXiv preprint arXiv:2411.14371 (2025).
+    Proc. Int. Conf. Learn. Representations (ICLR) (2025).
+    %
     \bibitem[Terver 25]{jepa_wm}
     Terver,~B., Yang,~T.~Y., Ponce,~J., Bardes,~A. and LeCun,~Y.:
     What Drives Success in Physical Planning with Joint-Embedding Predictive World Models?,
     arXiv preprint arXiv:2512.24497 (2025).
-    \bibitem[Assran 25]{v_jepa2}
-    Assran,~M., Bardes,~A., Fan,~D., Garrido,~Q., Howes,~R., Mojtaba, Komeili, M., Muckley,~M., Rizvi,~A., Roberts,~C., Sinha,~K., Zholus,~A. et al.:
-    V-JEPA 2: Self-Supervised Video Models Enable Understanding, Prediction and Planning,
-    arXiv preprint arXiv:2506.09985 (2025).
+    %
     \bibitem[Chen 25]{vl_jepa}
-    Chen,~D., Shukor,~M., Moutakanni,~T., Chung,~W., Yu,~J., Kasarla,~T., Bang,~Y., Bolourchi,~A., LeCun,~Y. and Fung,~P.:
+    Chen,~D., Shukor,~M., Moutakanni,~T. et al.:
     VL-JEPA: Joint Embedding Predictive Architecture for Vision-language,
     arXiv preprint arXiv:2512.10942 (2025).
+    %
+    \bibitem[Chua 18]{cem_pets}
+    Chua,~K., Calandra,~R., McAllister,~R. and Levine,~S.:
+    Deep Reinforcement Learning in a Handful of Trials using Probabilistic Dynamics Models,
+    Proc. 31st Advances in Neural Information Processing Systems (NeurIPS) (2018).
+    %
+    \bibitem[OpenAI 25]{gpt52}
+    OpenAI: 
+    ChatGPT (GPT-5.2 version) [Large language model], 
+    https://openai.com/api/ (Accessed Feb. 6, 2026).
 \end{thebibliography}
 
 %%
